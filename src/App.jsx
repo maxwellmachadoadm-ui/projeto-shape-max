@@ -158,7 +158,7 @@ const emptyDay = (workout) => ({
 const totalItems = (workoutKey) => {
   const w = WORKOUTS[workoutKey]
   if (!w) return 0
-  return w.blocks.reduce((s, b) => s + b.exercises.length, 0) + 1 // +1 cardio
+  return w.blocks.reduce((s, b) => s + b.exercises.length, 0) + 1
 }
 
 const doneItems = (record) => {
@@ -166,6 +166,12 @@ const doneItems = (record) => {
   const ex = Object.values(record.exercises || {}).filter((e) => e?.done).length
   const cardio = record.cardio?.done ? 1 : 0
   return ex + cardio
+}
+
+const blockProgress = (block, record) => {
+  const total = block.exercises.length
+  const done = block.exercises.filter((ex) => record?.exercises?.[ex.id]?.done).length
+  return { done, total }
 }
 
 const progressPct = (record) => {
@@ -177,14 +183,13 @@ const progressPct = (record) => {
 const isComplete = (record) => progressPct(record) >= 70
 
 /* ============================================================
-   COMPONENTE PRINCIPAL
+   APP
    ============================================================ */
 export default function App() {
   const [data, setData] = useState({})
   const [currentWorkout, setCurrentWorkout] = useState('A')
   const [loaded, setLoaded] = useState(false)
 
-  /* --- carregar do localStorage --- */
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -197,7 +202,6 @@ export default function App() {
     setLoaded(true)
   }, [])
 
-  /* --- salvar dados --- */
   useEffect(() => {
     if (!loaded) return
     try {
@@ -207,7 +211,6 @@ export default function App() {
     }
   }, [data, loaded])
 
-  /* --- salvar treino atual --- */
   useEffect(() => {
     if (!loaded) return
     localStorage.setItem(CURRENT_KEY, currentWorkout)
@@ -216,7 +219,6 @@ export default function App() {
   const today = todayKey()
   const todayRecord = data[today] || emptyDay(currentWorkout)
 
-  /* --- atualizar registro do dia --- */
   const setTodayRecord = useCallback(
     (updater) => {
       setData((prev) => {
@@ -284,7 +286,6 @@ export default function App() {
   const workout = WORKOUTS[workoutKey]
   const progress = progressPct(todayRecord)
 
-  /* --- histórico (últimos 10 dias com qualquer registro) --- */
   const history = useMemo(() => {
     return Object.entries(data)
       .filter(([, rec]) => doneItems(rec) > 0 || rec.peso || rec.cintura || rec.obs)
@@ -292,7 +293,6 @@ export default function App() {
       .slice(0, 10)
   }, [data])
 
-  /* --- estatísticas globais --- */
   const stats = useMemo(() => {
     const all = Object.values(data)
     const sessions = all.filter((r) => doneItems(r) > 0).length
@@ -304,59 +304,75 @@ export default function App() {
   return (
     <div className="app-bg min-h-screen text-slate-100">
       <div className="mx-auto max-w-md px-4 safe-top safe-bottom">
-        {/* ---------- Header ---------- */}
+        {/* ===== HEADER ===== */}
         <header className="pt-6 pb-2 animate-rise">
           <div className="flex items-center justify-between">
             <Badge />
             <DateChip date={today} />
           </div>
 
-          <h1 className="font-display text-3xl font-bold mt-5 leading-tight text-white">
+          <h1 className="font-display text-[34px] font-bold mt-5 leading-[1.05] text-white">
             Treino de hoje
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            {workout.name} · <span className="text-slate-300">{workout.subtitle}</span>
+          <p className="text-slate-300 text-sm mt-1.5">
+            <span className="text-emerald-300 font-semibold">{workout.name}</span>
+            <span className="text-slate-500 mx-1.5">·</span>
+            <span className="text-slate-300">{workout.subtitle}</span>
           </p>
 
-          {/* Progresso */}
-          <div className="mt-5 rounded-2xl border border-slate-800/80 bg-slate-900/40 backdrop-blur p-4">
+          {/* Card de progresso */}
+          <div className="card-base rounded-2xl p-5 mt-5">
             <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400 font-semibold">
                 Progresso
               </span>
-              <span className="font-display text-2xl font-bold text-white tabular-nums">
-                {progress}<span className="text-slate-500 text-base">%</span>
-              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-3xl font-extrabold text-white tabular-nums">
+                  {progress}
+                </span>
+                <span className="text-slate-500 text-base font-semibold">%</span>
+              </div>
             </div>
-            <div className="mt-3 h-2 w-full rounded-full bg-slate-800/80 overflow-hidden">
+            <div className="mt-3.5 h-2.5 w-full rounded-full bg-slate-800/80 overflow-hidden ring-1 ring-slate-700/50">
               <div
                 className="h-full rounded-full transition-[width] duration-500 ease-out"
                 style={{
                   width: `${progress}%`,
                   background:
                     progress >= 70
-                      ? 'linear-gradient(90deg, #10b981, #34d399)'
-                      : 'linear-gradient(90deg, #38bdf8, #818cf8)',
+                      ? 'linear-gradient(90deg, #10b981, #34d399, #6ee7b7)'
+                      : 'linear-gradient(90deg, #38bdf8, #818cf8, #a78bfa)',
+                  boxShadow:
+                    progress >= 70
+                      ? '0 0 12px rgba(16, 185, 129, 0.6)'
+                      : '0 0 12px rgba(56, 189, 248, 0.5)',
                 }}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-              <span>
-                {doneItems(todayRecord)} de {totalItems(workoutKey)} itens
+            <div className="mt-3 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-medium">
+                <span className="text-white tabular-nums">{doneItems(todayRecord)}</span>
+                <span className="text-slate-500"> de </span>
+                <span className="text-slate-300 tabular-nums">{totalItems(workoutKey)}</span> itens
               </span>
               {isComplete(todayRecord) ? (
-                <span className="text-emerald-400 font-medium">Sessão completa ✓</span>
+                <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  Sessão completa
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
               ) : (
-                <span>Meta: 70%</span>
+                <span className="text-slate-500 font-medium">Meta · 70%</span>
               )}
             </div>
           </div>
         </header>
 
-        {/* ---------- Seletor de treino ---------- */}
-        <section className="mt-6 animate-rise">
+        {/* ===== SELETOR DE TREINO ===== */}
+        <section className="mt-7 animate-rise">
           <SectionLabel>Selecione o treino</SectionLabel>
-          <div className="grid grid-cols-4 gap-2 mt-3">
+          <div className="grid grid-cols-4 gap-2.5 mt-3">
             {Object.keys(WORKOUTS).map((k) => (
               <WorkoutButton
                 key={k}
@@ -368,24 +384,26 @@ export default function App() {
           </div>
         </section>
 
-        {/* ---------- Exercícios ---------- */}
-        <section className="mt-6 space-y-5 animate-rise">
-          {workout.blocks.map((block) => (
-            <Block key={block.title} title={block.title}>
-              {block.exercises.map((ex) => (
-                <ExerciseCard
-                  key={ex.id}
-                  exercise={ex}
-                  state={todayRecord.exercises[ex.id]}
-                  onToggle={() => toggleExercise(ex.id)}
-                  onUpdate={(field, value) => updateExercise(ex.id, field, value)}
-                />
-              ))}
-            </Block>
-          ))}
+        {/* ===== EXERCÍCIOS ===== */}
+        <section className="mt-7 space-y-6 animate-rise">
+          {workout.blocks.map((block) => {
+            const bp = blockProgress(block, todayRecord)
+            return (
+              <Block key={block.title} title={block.title} done={bp.done} total={bp.total}>
+                {block.exercises.map((ex) => (
+                  <ExerciseCard
+                    key={ex.id}
+                    exercise={ex}
+                    state={todayRecord.exercises[ex.id]}
+                    onToggle={() => toggleExercise(ex.id)}
+                    onUpdate={(field, value) => updateExercise(ex.id, field, value)}
+                  />
+                ))}
+              </Block>
+            )
+          })}
 
-          {/* Cardio */}
-          <Block title="Cardio" accent="cardio">
+          <Block title="Cardio" accent="cardio" done={todayRecord.cardio?.done ? 1 : 0} total={1}>
             <CardioCard
               cardio={workout.cardio}
               state={todayRecord.cardio}
@@ -395,10 +413,10 @@ export default function App() {
           </Block>
         </section>
 
-        {/* ---------- Métricas do dia ---------- */}
-        <section className="mt-6 animate-rise">
+        {/* ===== MÉTRICAS DO DIA ===== */}
+        <section className="mt-7 animate-rise">
           <SectionLabel>Métricas do dia</SectionLabel>
-          <div className="mt-3 rounded-2xl border border-slate-800/80 bg-slate-900/40 backdrop-blur p-4 space-y-3">
+          <div className="card-base rounded-2xl p-5 mt-3 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Peso (kg)"
@@ -425,8 +443,8 @@ export default function App() {
           </div>
         </section>
 
-        {/* ---------- Estatísticas ---------- */}
-        <section className="mt-6 animate-rise">
+        {/* ===== ESTATÍSTICAS ===== */}
+        <section className="mt-7 animate-rise">
           <SectionLabel>Estatísticas</SectionLabel>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <StatCard label="Sessões registradas" value={stats.sessions} />
@@ -436,12 +454,12 @@ export default function App() {
           </div>
         </section>
 
-        {/* ---------- Histórico ---------- */}
-        <section className="mt-6 animate-rise">
+        {/* ===== HISTÓRICO ===== */}
+        <section className="mt-7 animate-rise">
           <SectionLabel>Histórico (últimos 10)</SectionLabel>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-2.5">
             {history.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 p-6 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 p-7 text-center text-sm text-slate-500">
                 Nenhum treino registrado ainda. Bora começar?
               </div>
             ) : (
@@ -450,15 +468,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* ---------- Limpar dia ---------- */}
-        <div className="mt-8 mb-4 animate-rise">
+        {/* ===== AÇÕES ===== */}
+        <div className="mt-9 mb-4 animate-rise">
           <button
             onClick={clearToday}
-            className="w-full rounded-2xl border border-rose-900/40 bg-rose-950/30 hover:bg-rose-950/50 active:scale-[0.99] transition py-4 text-rose-300 font-medium text-sm"
+            className="w-full rounded-2xl border border-rose-900/50 bg-rose-950/40 hover:bg-rose-950/60 active:scale-[0.99] transition py-4 text-rose-300 font-semibold text-sm"
           >
             Limpar treino de hoje
           </button>
-          <p className="mt-3 text-center text-[11px] text-slate-600">
+          <p className="mt-4 text-center text-[11px] text-slate-600">
             Projeto Shape Max · dados salvos no seu celular
           </p>
         </div>
@@ -468,17 +486,17 @@ export default function App() {
 }
 
 /* ============================================================
-   COMPONENTES AUXILIARES
+   COMPONENTES
    ============================================================ */
 
 function Badge() {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
+    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 backdrop-blur">
       <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 pulse-dot" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 pulse-dot" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
       </span>
-      <span className="font-display text-[11px] font-semibold tracking-[0.18em] uppercase text-emerald-300">
+      <span className="font-display text-[11px] font-bold tracking-[0.2em] uppercase text-emerald-200">
         Projeto Shape Max
       </span>
     </div>
@@ -487,7 +505,7 @@ function Badge() {
 
 function DateChip({ date }) {
   return (
-    <div className="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-400 tabular-nums">
+    <div className="rounded-full border border-slate-700/60 bg-slate-900/60 backdrop-blur px-3 py-1.5 text-[11px] text-slate-300 tabular-nums font-medium">
       {formatDate(date)}
     </div>
   )
@@ -495,7 +513,7 @@ function DateChip({ date }) {
 
 function SectionLabel({ children }) {
   return (
-    <h2 className="font-display text-[11px] font-semibold tracking-[0.22em] uppercase text-slate-500">
+    <h2 className="font-display text-[11px] font-bold tracking-[0.24em] uppercase text-slate-400">
       {children}
     </h2>
   )
@@ -506,17 +524,17 @@ function WorkoutButton({ letter, active, onClick }) {
     <button
       onClick={onClick}
       className={[
-        'relative h-16 rounded-2xl font-display font-bold text-2xl transition-all active:scale-[0.97]',
+        'relative h-[68px] rounded-2xl font-display font-extrabold text-[26px] transition-all active:scale-[0.97]',
         active
-          ? 'bg-white text-ink-950 shadow-[0_8px_30px_-10px_rgba(255,255,255,0.4)]'
-          : 'bg-slate-900/60 border border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900',
+          ? 'bg-gradient-to-br from-white to-slate-200 text-slate-900 shadow-[0_8px_25px_-5px_rgba(255,255,255,0.35),0_0_0_1px_rgba(255,255,255,0.5)]'
+          : 'card-base text-slate-200 hover:border-slate-600',
       ].join(' ')}
     >
       <span className="block leading-none">{letter}</span>
       <span
         className={[
-          'block text-[9px] font-semibold tracking-[0.18em] uppercase mt-1',
-          active ? 'text-ink-950/60' : 'text-slate-500',
+          'block text-[9px] font-bold tracking-[0.2em] uppercase mt-1',
+          active ? 'text-slate-600' : 'text-slate-500',
         ].join(' ')}
       >
         Treino
@@ -525,22 +543,41 @@ function WorkoutButton({ letter, active, onClick }) {
   )
 }
 
-function Block({ title, accent, children }) {
+function Block({ title, accent, children, done = 0, total = 0 }) {
   const isCardio = accent === 'cardio'
+  const allDone = total > 0 && done === total
   return (
     <div>
-      <div className="flex items-center gap-2 mb-2 px-1">
-        <span
-          className={[
-            'h-1 w-6 rounded-full',
-            isCardio ? 'bg-sky-400' : 'bg-emerald-400',
-          ].join(' ')}
-        />
-        <h3 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-slate-200">
-          {title}
-        </h3>
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={[
+              'h-1.5 w-7 rounded-full',
+              isCardio
+                ? 'bg-gradient-to-r from-sky-400 to-blue-500 shadow-[0_0_8px_rgba(56,189,248,0.5)]'
+                : 'bg-gradient-to-r from-emerald-400 to-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.5)]',
+            ].join(' ')}
+          />
+          <h3 className="font-display text-[13px] font-bold uppercase tracking-[0.18em] text-slate-100">
+            {title}
+          </h3>
+        </div>
+        {total > 0 && (
+          <span
+            className={[
+              'text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-full',
+              allDone
+                ? isCardio
+                  ? 'text-sky-200 bg-sky-500/20 border border-sky-500/40'
+                  : 'text-emerald-200 bg-emerald-500/20 border border-emerald-500/40'
+                : 'text-slate-400 bg-slate-800/60 border border-slate-700/60',
+            ].join(' ')}
+          >
+            {done}/{total}
+          </span>
+        )}
       </div>
-      <div className="space-y-2">{children}</div>
+      <div className="space-y-2.5">{children}</div>
     </div>
   )
 }
@@ -554,50 +591,57 @@ function ExerciseCard({ exercise, state, onToggle, onUpdate }) {
   return (
     <div
       className={[
-        'rounded-2xl border bg-slate-900/40 backdrop-blur p-4 transition-all',
-        done
-          ? 'border-emerald-500/40 bg-emerald-950/20 shadow-glow'
-          : 'border-slate-800/80',
+        'rounded-2xl p-4 transition-all',
+        done ? 'card-done' : 'card-base',
       ].join(' ')}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3.5">
         <CheckButton done={done} onClick={onToggle} variant="emerald" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <h4
               className={[
-                'font-display font-bold text-base leading-tight',
-                done ? 'text-emerald-200 line-through decoration-emerald-500/40' : 'text-white',
+                'font-display font-bold text-[16px] leading-tight',
+                done ? 'text-emerald-100' : 'text-white',
               ].join(' ')}
             >
               {exercise.name}
             </h4>
-            <span className="shrink-0 text-xs font-semibold text-slate-400 tabular-nums">
+            <span
+              className={[
+                'shrink-0 text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-md',
+                done
+                  ? 'text-emerald-200 bg-emerald-500/20'
+                  : 'text-slate-300 bg-slate-800/80 border border-slate-700/60',
+              ].join(' ')}
+            >
               {exercise.scheme}
             </span>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
             <Mini
               label="Carga"
               value={carga}
               onChange={(v) => onUpdate('carga', v)}
               placeholder="kg"
+              done={done}
             />
             <Mini
               label="Reps"
               value={reps}
               onChange={(v) => onUpdate('reps', v)}
               placeholder="—"
+              done={done}
             />
           </div>
           <Mini
-            className="mt-2"
+            className="mt-2.5"
             label="Obs"
             value={obs}
             onChange={(v) => onUpdate('obs', v)}
-            placeholder="Sensação, ajuste de altura, dor leve..."
-            wide
+            placeholder="Sensação, ajuste, dor leve..."
+            done={done}
           />
         </div>
       </div>
@@ -612,29 +656,36 @@ function CardioCard({ cardio, state, onToggle, onUpdate }) {
   return (
     <div
       className={[
-        'rounded-2xl border bg-slate-900/40 backdrop-blur p-4 transition-all',
-        done
-          ? 'border-sky-500/40 bg-sky-950/20 shadow-cardio'
-          : 'border-slate-800/80',
+        'rounded-2xl p-4 transition-all',
+        done ? 'card-cardio' : 'card-base',
       ].join(' ')}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3.5">
         <CheckButton done={done} onClick={onToggle} variant="sky" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <h4
               className={[
-                'font-display font-bold text-base leading-tight',
-                done ? 'text-sky-200' : 'text-white',
+                'font-display font-bold text-[16px] leading-tight',
+                done ? 'text-sky-100' : 'text-white',
               ].join(' ')}
             >
               {cardio.name}
             </h4>
-            <span className="shrink-0 text-xs font-semibold text-sky-300/80">
-              cardio
+            <span
+              className={[
+                'shrink-0 text-[10px] font-bold uppercase tracking-[0.15em] px-2 py-0.5 rounded-md',
+                done
+                  ? 'text-sky-200 bg-sky-500/20'
+                  : 'text-sky-300 bg-sky-500/15 border border-sky-500/30',
+              ].join(' ')}
+            >
+              Cardio
             </span>
           </div>
-          <p className="mt-1 text-sm text-slate-400">{cardio.scheme}</p>
+          <p className={done ? 'mt-1 text-sm text-sky-200/80' : 'mt-1 text-sm text-slate-300'}>
+            {cardio.scheme}
+          </p>
 
           <Mini
             className="mt-3"
@@ -642,7 +693,8 @@ function CardioCard({ cardio, state, onToggle, onUpdate }) {
             value={obs}
             onChange={(v) => onUpdate('obs', v)}
             placeholder="Tempo real, intensidade, BPM..."
-            wide
+            done={done}
+            cardio
           />
         </div>
       </div>
@@ -654,12 +706,12 @@ function CheckButton({ done, onClick, variant = 'emerald' }) {
   const palette =
     variant === 'sky'
       ? {
-          on: 'bg-sky-500 border-sky-400 text-white shadow-[0_0_0_4px_rgba(56,189,248,0.15)]',
-          off: 'border-slate-700 hover:border-sky-500/60',
+          on: 'bg-gradient-to-br from-sky-400 to-blue-500 border-sky-300 text-white shadow-[0_0_0_4px_rgba(56,189,248,0.2),0_4px_15px_-2px_rgba(56,189,248,0.6)]',
+          off: 'bg-slate-900/80 border-slate-600 hover:border-sky-400/70',
         }
       : {
-          on: 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_0_4px_rgba(16,185,129,0.15)]',
-          off: 'border-slate-700 hover:border-emerald-500/60',
+          on: 'bg-gradient-to-br from-emerald-400 to-emerald-600 border-emerald-300 text-white shadow-[0_0_0_4px_rgba(16,185,129,0.2),0_4px_15px_-2px_rgba(16,185,129,0.6)]',
+          off: 'bg-slate-900/80 border-slate-600 hover:border-emerald-400/70',
         }
 
   return (
@@ -667,12 +719,12 @@ function CheckButton({ done, onClick, variant = 'emerald' }) {
       onClick={onClick}
       aria-pressed={done}
       className={[
-        'mt-0.5 h-9 w-9 shrink-0 rounded-xl border-2 flex items-center justify-center transition-all active:scale-90',
-        done ? palette.on : `bg-slate-950 ${palette.off}`,
+        'mt-0.5 h-10 w-10 shrink-0 rounded-xl border-2 flex items-center justify-center transition-all active:scale-90',
+        done ? palette.on : palette.off,
       ].join(' ')}
     >
       {done && (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
       )}
@@ -680,10 +732,11 @@ function CheckButton({ done, onClick, variant = 'emerald' }) {
   )
 }
 
-function Mini({ label, value, onChange, placeholder, wide, className = '' }) {
+function Mini({ label, value, onChange, placeholder, className = '', done = false, cardio = false }) {
+  const focusRing = cardio ? 'focus:border-sky-400/70' : 'focus:border-emerald-400/70'
   return (
     <label className={`block ${className}`}>
-      <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-1">
+      <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1.5">
         {label}
       </span>
       <input
@@ -693,9 +746,12 @@ function Mini({ label, value, onChange, placeholder, wide, className = '' }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={[
-          'w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-sm text-white placeholder:text-slate-600',
-          'focus:outline-none focus:border-emerald-500/60 focus:bg-slate-950',
-          'transition',
+          'w-full rounded-xl border px-3 py-2.5 text-[15px] font-medium text-white placeholder:text-slate-500',
+          'transition focus:outline-none',
+          done
+            ? 'bg-slate-950/40 border-emerald-700/40'
+            : 'bg-slate-950/60 border-slate-700/70',
+          focusRing,
         ].join(' ')}
       />
     </label>
@@ -706,7 +762,7 @@ function Field({ label, value, onChange, placeholder, textarea, inputMode }) {
   const Tag = textarea ? 'textarea' : 'input'
   return (
     <label className="block">
-      <span className="block text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-1.5">
+      <span className="block text-[11px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-2">
         {label}
       </span>
       <Tag
@@ -716,7 +772,7 @@ function Field({ label, value, onChange, placeholder, textarea, inputMode }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 text-base text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/60 transition resize-none"
+        className="w-full rounded-xl border border-slate-700/70 bg-slate-950/60 px-3.5 py-3 text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400/70 transition resize-none"
       />
     </label>
   )
@@ -725,18 +781,29 @@ function Field({ label, value, onChange, placeholder, textarea, inputMode }) {
 function StatCard({ label, value, accent }) {
   const accentClass =
     accent === 'emerald'
-      ? 'text-emerald-400'
+      ? 'text-emerald-300'
       : accent === 'sky'
-      ? 'text-sky-400'
+      ? 'text-sky-300'
       : 'text-white'
 
+  const glowClass =
+    accent === 'emerald'
+      ? 'before:bg-emerald-500/10'
+      : accent === 'sky'
+      ? 'before:bg-sky-500/10'
+      : 'before:bg-transparent'
+
   return (
-    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 backdrop-blur p-4">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500 font-semibold">
-        {label}
-      </div>
-      <div className={`font-display text-3xl font-bold mt-1 tabular-nums ${accentClass}`}>
-        {value}
+    <div
+      className={`card-base rounded-2xl p-4 relative overflow-hidden before:absolute before:inset-0 before:rounded-2xl before:pointer-events-none ${glowClass}`}
+    >
+      <div className="relative">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">
+          {label}
+        </div>
+        <div className={`font-display text-[32px] font-extrabold mt-1 tabular-nums leading-none ${accentClass}`}>
+          {value}
+        </div>
       </div>
     </div>
   )
@@ -751,16 +818,16 @@ function HistoryRow({ date, record }) {
   return (
     <div
       className={[
-        'rounded-2xl border bg-slate-900/40 backdrop-blur p-3.5 flex items-center gap-3',
-        complete ? 'border-emerald-500/30' : 'border-slate-800/80',
+        'rounded-2xl p-3.5 flex items-center gap-3 transition',
+        complete ? 'card-done' : 'card-base',
       ].join(' ')}
     >
       <div
         className={[
-          'h-12 w-12 shrink-0 rounded-xl flex items-center justify-center font-display font-bold text-lg',
+          'h-12 w-12 shrink-0 rounded-xl flex items-center justify-center font-display font-extrabold text-lg',
           complete
-            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-            : 'bg-slate-800/60 text-slate-400 border border-slate-700',
+            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-[0_4px_12px_-2px_rgba(16,185,129,0.5)]'
+            : 'bg-slate-800/80 text-slate-300 border border-slate-700',
         ].join(' ')}
       >
         {record.workout || '–'}
@@ -772,19 +839,29 @@ function HistoryRow({ date, record }) {
           </span>
           <span
             className={[
-              'text-xs font-semibold tabular-nums',
-              complete ? 'text-emerald-400' : 'text-slate-400',
+              'text-xs font-bold tabular-nums',
+              complete ? 'text-emerald-300' : 'text-slate-400',
             ].join(' ')}
           >
             {pct}%
           </span>
         </div>
-        <div className="mt-0.5 text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="mt-0.5 text-[11px] text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">
           <span>
-            {done}/{total} itens
+            <span className="text-slate-200 tabular-nums">{done}</span>
+            <span className="text-slate-500">/</span>
+            <span className="tabular-nums">{total}</span> itens
           </span>
-          {record.peso && <span>Peso: {record.peso}kg</span>}
-          {record.cintura && <span>Cintura: {record.cintura}cm</span>}
+          {record.peso && (
+            <span>
+              Peso: <span className="text-slate-200">{record.peso}kg</span>
+            </span>
+          )}
+          {record.cintura && (
+            <span>
+              Cintura: <span className="text-slate-200">{record.cintura}cm</span>
+            </span>
+          )}
         </div>
       </div>
     </div>
